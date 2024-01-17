@@ -7,46 +7,38 @@ use std::io::stdin;
 
 const BASE_URL: &str = "http://cheat.sh/";
 
-fn make_request(client: &Client, url: &str) -> String {
+fn make_request(client: &Client, url: &str) -> Result<String, reqwest::Error> {
     let req = client.get(url).header("User-Agent", "curl");
-    req.send()
-        .expect("Error on request.")
-        .text()
-        .expect("Error on text parse.")
+    req.send()?.text()
 }
 
-fn main() {
+fn print_topics(topics: &str) {
+    println!("select a topic");
+    println!("Here are some sugestions:");
+    topics.lines().for_each(|topic| println!("\t{topic}"));
+}
+
+fn get_topic() -> Result<String, std::io::Error> {
+    let mut input = String::new();
+    stdin().read_line(&mut input)?;
+    Ok(input)
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = SheatterArgs::parse();
+    let client = Client::new();
 
     let topic = args.topic;
 
-    let mut url = BASE_URL.to_owned() + &topic + "/:list";
+    let url = BASE_URL.to_owned() + &topic + "/:list";
+    let topics = make_request(&client, &url)?;
 
-    let client = Client::new();
+    print_topics(&topics);
+    let selected_topic = get_topic()?;
 
-    let body = make_request(&client, &url);
-
-    let topics = body.lines();
-    topics
-        .clone()
-        .enumerate()
-        .for_each(|(index, topic)| println!("{index}:{topic}"));
-    println!("select a topic");
-    let mut input = String::new();
-    stdin().read_line(&mut input).expect("No input");
-    let index: usize = input.trim().parse().expect("failed to parse to int");
-    let desc_topic = topics
-        .clone()
-        .nth(index)
-        .expect("no option with that index");
-
-    url = BASE_URL.to_owned() + &topic + "/" + desc_topic;
-
-    let final_response = make_request(&client, &url);
-    println!(
-        "######### --- ########
-    ######### --- ########
-    ######### --- ########\n
-    {final_response}"
-    );
+    // shadowing url
+    let url = BASE_URL.to_owned() + &topic + "/" + &selected_topic;
+    let page = make_request(&client, &url)?;
+    println!("\n\n{page}");
+    Ok(())
 }
